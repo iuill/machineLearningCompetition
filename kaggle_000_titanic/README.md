@@ -18,4 +18,5 @@ https://www.kaggle.com/competitions/titanic/overview
 | ---- | ------ | ----------------| ----- | ---- |
 | 2022/10/02 | f24c4d6a980cf0cd342e4cd1ae228360669621f4 | model_lgb_holdout.pkl | 0.75358 | LightGBM + Hold-out |
 | 2022/10/02 | f24c4d6a980cf0cd342e4cd1ae228360669621f4 | model_lgb_crossvalidation.pkl | 0.62200 | LightGBM + CV10分割 |
+| 2022/10/02 | a521cf0c14b514bfd3cb3990f11cd6a8313e4acc | model_lgb_grid_search_cv.pkl | 0.76315 | LightGBM + GridSearchCV + KFold3分割 |
 
