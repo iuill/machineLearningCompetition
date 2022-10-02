@@ -95,6 +95,7 @@ logger.info("  pandas: " + pd.__version__)
 logger.info("  pandas-profiling: " + pdp.__version__)
 logger.info("  numpy: " + np.__version__)
 #logger.info("  xgboost: " + xgb.__version__)
+logger.info("  lightgbm: " + lgb.__version__)
 logger.info("  scikit-learn: " + sklearn.__version__)
 logger.info("  logging: " + logging.__version__)
 

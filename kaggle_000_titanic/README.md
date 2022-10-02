@@ -2,6 +2,16 @@
 
 https://www.kaggle.com/competitions/titanic/overview
 
+## 環境
+
+* python: 3.10.4 | packaged by conda-forge | (main, Mar 30 2022, 08:38:02) [MSC v.1916 64 bit (AMD64)]
+* pandas: 1.4.4
+* pandas-profiling: 3.3.0
+* numpy: 1.23.3
+* lightgbm: 3.3.2
+* scikit-learn: 1.1.2
+* logging: 0.5.1.2
+
 ## コミットID、スコアメモ書き
 
 | date | commit id | model file name | score | note |
