@@ -29,6 +29,7 @@ from imblearn.over_sampling import SMOTE
 # import warnings
 # warnings.simplefilter('ignore')
 
+import settings
 import common
 
 # -----------------------------------------------------
@@ -291,31 +292,35 @@ data_train_imb_x, data_train_imb_y \
 
 logger.info("[BEGIN] LightGBM learn: hold-out")
 
-lgb_train = lgb.Dataset(data_train_imb_x, data_train_imb_y)
-lgb_eval = lgb.Dataset(data_valid_x, data_valid_y)
+if settings.isLearnLgbmWithHoldOut:
 
-lgb_params = {"objective":"binary"}
+    lgb_train = lgb.Dataset(data_train_imb_x, data_train_imb_y)
+    lgb_eval = lgb.Dataset(data_valid_x, data_valid_y)
 
-evals_result = {}
+    lgb_params = {"objective":"binary"}
 
-lgb_model = lgb.train(params=lgb_params,
-                      train_set=lgb_train,
-                      valid_sets=[lgb_train, lgb_eval],
-                      early_stopping_rounds=20,
-                      evals_result=evals_result,
-                      verbose_eval=10)
+    evals_result = {}
 
-file = 'model_lgb_holdout.pkl'
-pickle.dump(lgb_model, open(file, 'wb'))
+    lgb_model = lgb.train(params=lgb_params,
+                        train_set=lgb_train,
+                        valid_sets=[lgb_train, lgb_eval],
+                        early_stopping_rounds=20,
+                        evals_result=evals_result,
+                        verbose_eval=10)
 
-pred_y = lgb_model.predict(data_valid_x, num_iteration=lgb_model.best_iteration)
-pred_y = pred_y.round(0)
-logger.info(">> classification_report [predict]:\r\n{}".format(classification_report(data_valid_y, pred_y)))
+    file = 'model_lgb_holdout.pkl'
+    pickle.dump(lgb_model, open(file, 'wb'))
 
-plt.plot(evals_result["training"]["binary_logloss"], label="train_loss")
-plt.plot(evals_result["valid_1"]["binary_logloss"], label="valid_loss")
-plt.legend()
-plt.show()
+    pred_y = lgb_model.predict(data_valid_x, num_iteration=lgb_model.best_iteration)
+    pred_y = pred_y.round(0)
+    logger.info(">> classification_report [predict]:\r\n{}".format(classification_report(data_valid_y, pred_y)))
+
+    plt.plot(evals_result["training"]["binary_logloss"], label="train_loss")
+    plt.plot(evals_result["valid_1"]["binary_logloss"], label="valid_loss")
+    plt.legend()
+    plt.show()
+else:
+    logger.info(">>>> SKIPPED")
 
 
 #
@@ -324,43 +329,76 @@ plt.show()
 
 logger.info("[BEGIN] LightGBM learn: cross-validation")
 
-#kf = KFold(n_splits=10, shuffle=True, random_state=0)
-kf = StratifiedKFold(n_splits=10, shuffle=True, random_state=0)
+if settings.isLearnLgbmWithCV:
+    #kf = KFold(n_splits=10, shuffle=True, random_state=0)
+    kf = StratifiedKFold(n_splits=10, shuffle=True, random_state=0)
 
-score_list = []
-models = []
+    score_list = []
+    models = []
 
-for fold_, (train_index, valid_index) in enumerate(kf.split(data_train_imb_x, data_train_imb_y)):
-    logger.info(f">> fold:{fold_ + 1} start...")
-    train_x = data_train_imb_x.iloc[train_index]
-    valid_x = data_train_imb_x.iloc[valid_index]
-    train_y = data_train_imb_y[train_index]
-    valid_y = data_train_imb_y[valid_index]
+    for fold_, (train_index, valid_index) in enumerate(kf.split(data_train_imb_x, data_train_imb_y)):
+        logger.info(f">> fold:{fold_ + 1} start...")
+        train_x = data_train_imb_x.iloc[train_index]
+        valid_x = data_train_imb_x.iloc[valid_index]
+        train_y = data_train_imb_y[train_index]
+        valid_y = data_train_imb_y[valid_index]
+        
+        lgb_train = lgb.Dataset(train_x, train_y)
+        lgb_valid = lgb.Dataset(valid_x, valid_y)
+        
+        lgb_params = {"objective":"binary"}
+        
+        lgb_model = lgb.train(
+            params=lgb_params,
+            train_set=lgb_train,
+            valid_sets=[lgb_train, lgb_valid],
+            early_stopping_rounds=20,
+            verbose_eval=10
+        )
+
+        pred_y = lgb_model.predict(valid_x, num_iteration=lgb_model.best_iteration)
+        pred_y = pred_y.round(0)
+        f1 = classification_report(valid_y, pred_y, output_dict=True)["macro avg"]["f1-score"]
+        score_list.append(f1)
+        models.append(lgb_model)
+
+    file = 'model_lgb_crossvalidation.pkl'
+    pickle.dump(models, open(file, 'wb'))
+
+    logger.info(f">> average: {np.mean(score_list)}")
+else:
+    logger.info(">>>> SKIPPED")
+
+
+#
+# 学習: GridSearch @ scikit-learn
+#
+
+logger.info("[BEGIN] LightGBM learn: GridSearchCV")
+
+if settings.isLearnLgbmWithGridSearch:
+    clf = lgb.LGBMClassifier(objective="binary")
     
-    lgb_train = lgb.Dataset(data_train_imb_x, data_train_imb_y)
-    lgb_valid = lgb.Dataset(data_valid_x, data_valid_y)
+    params = {
+        "num_leaves": [20, 31, 40, 50],
+        "reg_alpha": [0, 1, 10, 100],
+        "reg_lambda": [0, 1, 10, 100]
+    }
     
-    lgb_params = {"objective":"binary"}
-    
-    lgb_model = lgb.train(
-        params=lgb_params,
-        train_set=lgb_train,
-        valid_sets=[lgb_train, lgb_valid],
-        early_stopping_rounds=20,
-        verbose_eval=10
+    grid_search = GridSearchCV(
+        clf,
+        param_grid=params,
+        cv=3
     )
-
-    pred_y = lgb_model.predict(data_valid_x, num_iteration=lgb_model.best_iteration)
-    pred_y = pred_y.round(0)
-    f1 = classification_report(data_valid_y, pred_y, output_dict=True)["macro avg"]["f1-score"]
-    score_list.append(f1)
-    models.append(lgb_model)
-
-
-file = 'model_lgb_crossvalidation.pkl'
-pickle.dump(models, open(file, 'wb'))
-
-logger.info(f">> average: {np.mean(score_list)}")
+    grid_search.fit(data_train_imb_x, data_train_imb_y)
+    
+    file = 'model_lgb_grid_search_cv.pkl'
+    pickle.dump(grid_search.best_estimator_, open(file, 'wb'))
+    
+    logger.info(f">> best score: {grid_search.best_score_}")
+    logger.info(f">> best params: {grid_search.best_params_}")
+else:
+    logger.info(">>>> SKIPPED")
 
 
 # -----------------------------------------------------
@@ -395,6 +433,49 @@ pred = np.array(pred, dtype=np.int32)
 data_sample_submission["Survived"] = pred
 data_sample_submission.to_csv("pred_lgb_cv.csv", index=False)
 
+#
+# GridSearchCV
+#
 
-logger.info("finished...")
+file = 'model_lgb_grid_search_cv.pkl'
+model = pickle.load(open(file, 'rb'))
+
+kf = KFold(n_splits=3, shuffle=True, random_state=0)
+
+score_list = []
+test_pred = np.zeros((len(data_test_sanitized_x), 3))
+
+for fold_, (train_index, valid_index) in enumerate(kf.split(data_train_imb_x, data_train_imb_y)):
+    logger.info(f">> fold:{fold_ + 1} start...")
+    train_x = data_train_imb_x.iloc[train_index]
+    valid_x = data_train_imb_x.iloc[valid_index]
+    train_y = data_train_imb_y[train_index]
+    valid_y = data_train_imb_y[valid_index]
+    
+    clf = model
+    
+    clf.fit(
+        data_train_imb_x,
+        data_train_imb_y,
+        eval_set=[(train_x, train_y), (valid_x, valid_y)],
+        early_stopping_rounds=20,
+        verbose=10
+        )
+    pred_y = clf.predict(valid_x, num_iteration=clf.best_iteration_)
+    pred_y = pred_y.round(0)
+    test_pred[:, fold_] = clf.predict_proba(data_test_sanitized_x)[:, 1]
+    f1 = classification_report(valid_y, pred_y, output_dict=True)["macro avg"]["f1-score"]
+    score_list.append(f1)
+
+logger.info(f">> f1 average: {np.mean(score_list)}")
+pred = (np.mean(test_pred, axis=1) > 0.5).astype(int)
+data_sample_submission["Survived"] = pred
+data_sample_submission.to_csv("pred_lgb_grid_search_cv.csv", index=False)
+
+
+# -----------------------------------------------------
+# all finished.
+# -----------------------------------------------------
+
+logger.info("press any key to exit...")
 input()
